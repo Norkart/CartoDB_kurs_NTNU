@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Layer selector example | CartoDB.js</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+    <link rel="shortcut icon" href="http://cartodb.com/assets/favicon.ico" />
+    <style>
+      html, body, #map {
+        height: 100%;
+        padding: 0;
+        margin: 0;
+      }
+      #layer_selector {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        padding: 0;
+      }
+      #layer_selector ul {
+        padding: 0; margin: 0;
+        list-style-type: none;
+      }
+      #layer_selector li {
+        border-bottom: 1px solid #999;
+        padding: 15px 30px;
+        font-family: "Helvetica", Arial;
+        font-size: 13px;
+        color: #444;
+        cursor: auto;
+      }
+      #layer_selector li:hover {
+        background-color: #F0F0F0;
+        cursor: pointer;
+      }
+      #layer_selector li.selected {
+        background-color: #EEE;
+      }
+
+      .leaflet-top.leaflet-left {
+        padding-top: 100px; 
+      }
+    </style>
+
+    <link href="http://maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+
+
+    <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/3.15/themes/css/cartodb.css" />
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="layer_selector" class="cartodb-infobox">
+      <ul>
+        <li data="all" class="selected">Alle omsetninger</li>
+        <li data="1000000">Omsetningsbeloep >1M kr<sup>2</sup></li>
+        <li data="3000000">Omsetningsbeloep >3M kr<sup>2</sup></li>
+        <li data="5000000">Omsetningsbeloep >5M kr<sup>2</sup></li>
+        <li data="10000000">Omsetningsbeloep >10M kr<sup>2</sup></li>
+      </ul>
+    </div>
+
+    <!-- include cartodb.js library -->
+    <script src="http://libs.cartocdn.com/cartodb.js/v3/3.15/cartodb.js"></script>
+    
+    <link rel="stylesheet" href="http://rawgithub.com/domoritz/leaflet-locatecontrol/gh-pages/dist/L.Control.Locate.min.css" />
+    <script src="http://rawgithub.com/domoritz/leaflet-locatecontrol/gh-pages/dist/L.Control.Locate.min.js" ></script>
+
+    <script>
+      // create layer selector
+      function createSelector(layer) {
+        var sql = new cartodb.SQL({ user: 'documentation' });
+        var $options = $('#layer_selector li');
+        $options.click(function(e) {
+          // get the pris of the selected layer
+          var $li = $(e.target);
+          var pris = $li.attr('data');
+          // deselect all and select the clicked one
+          $options.removeClass('selected');
+          $li.addClass('selected');
+          // create query based on data from the layer
+          var query = "SELECT * FROM omsetninger_hele_landet_30dager";
+          if(pris !== 'all') {
+            query = "SELECT * FROM omsetninger_hele_landet_30dager where omsetningsbeloep >" + pris;
+          }
+          // change the query in the layer to update the map
+          layer.setSQL(query);
+        });
+      }
+      function main() {
+        cartodb.createVis('map', 'https://tonoarmas.cartodb.com/api/v2/viz/9287f206-6749-11e5-bc9e-0ecd1babdde5/viz.json', {
+          tiles_loader: true,
+          center_lat: 63,
+          center_lon: 11,
+          zoom: 5
+        })
+        .done(function(vis, layers) {
+          // layer 0 is the base layer, layer 1 is cartodb layer
+          var subLayer = layers[1].getSubLayer(0);
+          createSelector(subLayer);
+
+          // you can get the native map to work with it
+          var map = vis.getNativeMap();
+
+          L.control.locate({
+              position: 'topleft', // set the location of the control
+              drawCircle: true, // controls whether a circle is drawn that shows the uncertainty about the location
+              follow: false, // follow the user's location
+              setView: true, // automatically sets the map view to the user's location, enabled if `follow` is true
+              keepCurrentZoomLevel: false, // keep the current map zoom level when displaying the user's location. (if `false`, use maxZoom)
+              stopFollowingOnDrag: false, // stop following when the map is dragged if `follow` is true (deprecated, see below)
+              remainActive: false, // if true locate control remains active on click even if the user's location is in view.
+              markerClass: L.circleMarker, // L.circleMarker or L.marker
+              circleStyle: {
+                fillOpacity: 0,
+                opacity: 0.1
+              }, // change the style of the circle around the user's location
+              markerStyle: {},
+              followCircleStyle: {}, // set difference for the style of the circle around the user's location while following
+              followMarkerStyle: {},
+              icon: 'fa fa-map-marker', // class for icon, fa-location-arrow or fa-map-marker
+              iconLoading: 'fa fa-spinner fa-spin', // class for loading icon
+              circlePadding: [0, 0], // padding around accuracy circle, value is passed to setBounds
+              metric: true, // use metric or imperial units
+              onLocationError: function(err) {
+                  alert(err.message)
+              }, // define an error callback function
+              onLocationOutsideMapBounds: function(context) { // called when outside map boundaries
+                  alert(context.options.strings.outsideMapBoundsMsg);
+              },
+              showPopup: false, // display a popup when the user click on the inner marker
+              strings: {
+                  title: "Flytt til posisjonen din", // title of the locate control
+                  metersUnit: "meter", // string for metric units
+                  feetUnit: "fot", // string for imperial units
+                  popup: "Du er innenfor {distance} {unit} fra dette punktet", // text to appear if user clicks on circle
+                  outsideMapBoundsMsg: "Du er utenfor kartets grenser" // default message for onLocationOutsideMapBounds
+              },
+              locateOptions: {
+                enableHighAccuracy: true
+              } // define location options e.g enableHighAccuracy: true or maxZoom: 10
+          }).addTo(map);          
+        })
+        .error(function(err) {
+          console.log(err);
+        });
+      }
+      window.onload = main;
+    </script>
+  </body>
+</html>
